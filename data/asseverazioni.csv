@@ -1,0 +1,15 @@
+﻿Nome ente;Funding Request Name;Oggetto;Data ultima assegnazione;L'asseverazione è bloccata?;Ultimo esito asseverazione tecnica;Stato progetto
+Comune di V1;CND_xxx1;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Comuni - Aprile 2022;29/05/2025 16:09;Sì;Parziale;AVVIATO
+Comune di V2;CND_xxx2;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Comuni - Luglio 2022;28/03/2025 10:17;;Parziale;IN VERIFICA
+Comune di V3;CND_xxx3;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Comuni - Luglio 2022;25/06/2025 16:09;;Parziale;IN VERIFICA
+ISTITUTO V1;CND_xxxx4;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Scuole - Dicembre 2022;27/06/2025 11:02;Sì;Parziale;IN VERIFICA
+ISTITUTO V2;CND_xxx5;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Scuole - Dicembre 2022;23/06/2025 18:04;Sì;Parziale;IN VERIFICA
+ISTITUTO V3;CND_xxx6;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Scuole - Dicembre 2022;26/03/2025 10:10;Sì;Parziale;IN VERIFICA
+Istituto V4;CND_xxx7;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Scuole - Giugno 2022;30/06/2025 12:21;;Parziale;IN VERIFICA
+Istituto V5;CND_xxxx8;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Scuole - Giugno 2022;11/10/2023 13:26;;Parziale;IN VERIFICA
+ISTITUTO V6;CND_xxx9;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Scuole - Giugno 2022;04/03/2025 10:33;No;Parziale;AVVIATO
+ISTITUTO V7;CNDxxx10;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Scuole - ottobre 2023;24/06/2025 10:12;Sì;Parziale;IN VERIFICA
+ISTITUTO V8;CND_xxx11;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Scuole - ottobre 2023;24/02/2025 10:15;Sì;Parziale;IN VERIFICA
+ISTITUTO V9;CND_xxx12;Controlli conformità tecnica - 1.2 - Abilitazione al Cloud - Scuole - ottobre 2023;06/05/2025 13:37;No;Parziale;IN VERIFICA
+Comune V4;CND_xxx13;Controlli conformità tecnica - 1.4.1 - Esperienza del Cittadino - Comuni - Settembre 2022;04/06/2025 10:04;;Parziale;IN VERIFICA
+Comune V5;CND_xxx14;Controlli conformità tecnica - 1.4.1 - Esperienza del Cittadino - Comuni - Settembre 2022;25/02/2025 15:11;;Parziale;IN VERIFICA
