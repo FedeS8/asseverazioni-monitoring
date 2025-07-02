@@ -723,7 +723,43 @@ def main():
         
         # Crea e invia email sicura (dati aggregati)
         html_content = reminder.generate_secure_html_email(alerts)
-        reminder.send_email(html_content)
+        
+        # LOG DEL CONTENUTO EMAIL
+        logger.info("=" * 80)
+        logger.info("📧 CONTENUTO EMAIL GENERATO:")
+        logger.info("=" * 80)
+        
+        # Converte HTML in testo leggibile per il log
+        import re
+        
+        # Rimuove tag HTML per una versione text-only
+        text_content = re.sub(r'<[^>]+>', '', html_content)
+        # Pulisce spazi multipli e newline
+        text_content = re.sub(r'\s+', ' ', text_content).strip()
+        # Ripristina alcune interruzioni di riga logiche
+        text_content = text_content.replace('🔔 Monitoraggio Asseverazioni PNRR', '\n🔔 Monitoraggio Asseverazioni PNRR')
+        text_content = text_content.replace('📊 Riepilogo Esecutivo', '\n\n📊 Riepilogo Esecutivo')
+        text_content = text_content.replace('📞 Enti da Contattare', '\n\n📞 Enti da Contattare')
+        text_content = text_content.replace('⚡ Verifiche Interne', '\n\n⚡ Verifiche Interne')
+        text_content = text_content.replace('💡 Raccomandazioni', '\n\n💡 Raccomandazioni')
+        text_content = text_content.replace('Nota sulla Privacy:', '\n\nNota sulla Privacy:')
+        
+        logger.info(text_content)
+        
+        logger.info("=" * 80)
+        logger.info("📧 CONTENUTO HTML COMPLETO:")
+        logger.info("=" * 80)
+        logger.info(html_content)
+        logger.info("=" * 80)
+        
+        # Tenta l'invio email - COMMENTATO per evitare problemi con account aziendale
+        try:
+            logger.info("📧 Invio email DISABILITATO per protezione account aziendale")
+            logger.info("💡 Per abilitare l'invio, decommentare la riga reminder.send_email(html_content)")
+            # reminder.send_email(html_content)  # COMMENTATO
+        except Exception as email_error:
+            logger.warning(f"⚠️ Invio email fallito: {email_error}")
+            logger.info("💡 Email non inviata, ma contenuto generato correttamente (vedi log sopra)")
         
         # Statistiche finali
         total_alerts = sum(len(v) for v in alerts.values())
