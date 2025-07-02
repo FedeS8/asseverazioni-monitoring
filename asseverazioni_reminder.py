@@ -571,12 +571,17 @@ def main():
         # Priorità: SharePoint URL se disponibile, altrimenti file locale
         sharepoint_url = os.getenv('SHAREPOINT_URL')
         excel_file_path = os.getenv('EXCEL_FILE_PATH', 'data/asseverazioni.xlsx')
+        csv_file_path = os.getenv('CSV_FILE_PATH', 'data/asseverazioni.csv')
         
-        if sharepoint_url:
+        # Prova prima CSV, poi Excel, poi SharePoint
+        if os.path.exists(csv_file_path):
+            logger.info("Usando file CSV locale...")
+            df = reminder.load_excel_data(file_path=csv_file_path)
+        elif sharepoint_url:
             logger.info("Usando file da SharePoint...")
             df = reminder.load_excel_data(sharepoint_url=sharepoint_url)
         else:
-            logger.info("Usando file locale...")
+            logger.info("Usando file Excel locale...")
             df = reminder.load_excel_data(file_path=excel_file_path)
         df = reminder.parse_date_column(df)
         partial_df = reminder.filter_partial_assessments(df)
