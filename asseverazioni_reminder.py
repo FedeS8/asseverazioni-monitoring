@@ -568,21 +568,24 @@ def main():
         # Carica e processa i dati
         logger.info("Avvio elaborazione asseverazioni...")
         
-        # Priorità: SharePoint URL se disponibile, altrimenti file locale
+        # Priorità: CSV locale, poi SharePoint, poi Excel locale
+        csv_file_path = 'data/asseverazioni.csv'
+        excel_file_path = 'data/asseverazioni.xlsx'
         sharepoint_url = os.getenv('SHAREPOINT_URL')
-        excel_file_path = os.getenv('EXCEL_FILE_PATH', 'data/asseverazioni.xlsx')
-        csv_file_path = os.getenv('CSV_FILE_PATH', 'data/asseverazioni.csv')
         
-        # Prova prima CSV, poi Excel, poi SharePoint
+        import os
+        
         if os.path.exists(csv_file_path):
             logger.info("Usando file CSV locale...")
-            df = reminder.load_excel_data(file_path=csv_file_path)
+            df = reminder.load_csv_data(csv_file_path)
         elif sharepoint_url:
             logger.info("Usando file da SharePoint...")
             df = reminder.load_excel_data(sharepoint_url=sharepoint_url)
-        else:
+        elif os.path.exists(excel_file_path):
             logger.info("Usando file Excel locale...")
             df = reminder.load_excel_data(file_path=excel_file_path)
+        else:
+            raise FileNotFoundError("Nessun file dati trovato. Caricare asseverazioni.csv o asseverazioni.xlsx in data/")
         df = reminder.parse_date_column(df)
         partial_df = reminder.filter_partial_assessments(df)
         
