@@ -34,6 +34,99 @@ class AsseverazioniReminderManager:
         # Validazione configurazione
         if not all([self.email_mittente, self.password_email, self.email_destinatari[0]]):
             raise ValueError("Configurazione email aziendale incompleta. Verificare le variabili d'ambiente.")
+
+    def load_csv_data(self, csv_file_path: str) -> pd.DataFrame:
+        """Carica i dati dal file CSV con gestione automatica encoding e separatori"""
+        try:
+            logger.info(f"Caricamento file CSV: {csv_file_path}")
+            
+            # Prova diverse combinazioni di encoding e separatori
+            encodings = ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']
+            separators = [',', ';', '\t', '|']
+            
+            df = None
+            successful_config = None
+            
+            for encoding in encodings:
+                for sep in separators:
+                    try:
+                        df_temp = pd.read_csv(csv_file_path, encoding=encoding, sep=sep)
+                        
+                        # Verifica che il CSV sia valido
+                        if (len(df_temp) > 0 and 
+                            len(df_temp.columns) >= 5 and  # Almeno 5 colonne
+                            not df_temp.columns[0].startswith('Unnamed')):  # Non colonne senza nome
+                            
+                            df = df_temp
+                            successful_config = f"encoding={encoding}, separator='{sep}'"
+                            logger.info(f"✅ CSV caricato con {successful_config}: {len(df)} righe, {len(df.columns)} colonne")
+                            break
+                    except Exception as e:
+                        logger.debug(f"Tentativo encoding={encoding}, sep='{sep}' fallito: {str(e)[:100]}")
+                        continue
+                
+                if df is not None and len(df) > 0:
+                    break
+            
+            if df is None or len(df) == 0:
+                raise ValueError("Impossibile caricare il file CSV con nessuna combinazione di encoding/separatore")
+            
+            logger.info(f"📊 CSV caricato con successo usando {successful_config}")
+            logger.info(f"Dimensioni: {df.shape[0]} righe, {df.shape[1]} colonne")
+            logger.info(f"Colonne: {list(df.columns)}")
+            logger.info(f"Primo record:\n{df.head(1).to_string()}")
+            
+            # Pulizia colonne
+            df.columns = [str(col).strip() for col in df.columns]
+            
+            # Rimuovi righe completamente vuote
+            df = df.dropna(how='all')
+            logger.info(f"Dopo pulizia righe vuote: {len(df)} righe")
+            
+            # Verifica presenza colonne essenziali
+            required_columns = [
+                'Nome ente', 'Funding Request Name', 'Oggetto', 
+                'Data ultima assegnazione', 'L\'asseverazione è bloccata?',
+                'Ultimo esito asseverazione tecnica', 'Stato progetto'
+            ]
+            
+            # Matching colonne con tolleranza
+            column_mapping = {}
+            for req_col in required_columns:
+                found = False
+                for actual_col in df.columns:
+                    # Pulizia per matching
+                    req_clean = req_col.lower().replace(' ', '').replace('\'', '').replace('?', '')
+                    actual_clean = str(actual_col).lower().replace(' ', '').replace('\'', '').replace('?', '')
+                    
+                    if (req_clean == actual_clean or 
+                        req_clean in actual_clean or 
+                        actual_clean in req_clean):
+                        column_mapping[actual_col] = req_col
+                        found = True
+                        break
+                
+                if not found:
+                    logger.warning(f"Colonna non trovata: {req_col}")
+            
+            # Applica mapping
+            if column_mapping:
+                df = df.rename(columns=column_mapping)
+                logger.info(f"Colonne rinominate: {column_mapping}")
+            
+            # Verifica colonne finali
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                logger.error(f"COLONNE MANCANTI: {missing_columns}")
+                logger.error(f"COLONNE DISPONIBILI: {list(df.columns)}")
+                raise ValueError(f"Colonne essenziali mancanti: {missing_columns}")
+            
+            logger.info("✅ Tutte le colonne essenziali sono presenti!")
+            return df
+            
+        except Exception as e:
+            logger.error(f"Errore nel caricamento CSV: {e}")
+            raise
     
     def convert_sharepoint_url_to_download(self, sharepoint_url: str) -> str:
         """Converte un link di condivisione SharePoint in URL di download diretto"""
