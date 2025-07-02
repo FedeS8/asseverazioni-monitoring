@@ -19,21 +19,21 @@ logger = logging.getLogger(__name__)
 
 class AsseverazioniReminderManager:
     def __init__(self):
-        # Configurazione email aziendale Microsoft 365
-        self.email_mittente = os.getenv('EMAIL_AZIENDALE')  # f.satta@innovazione.gov.it
-        self.password_email = os.getenv('PASSWORD_AZIENDALE')  # Password aziendale o App Password
-        self.email_destinatari = os.getenv('EMAIL_DESTINATARI', '').split(',')
+        # Configurazione email Gmail (sicura per test)
+        self.email_mittente = os.getenv('EMAIL_MITTENTE', 'federica.pazzolasatta@gmail.com')
+        self.password_email = os.getenv('PASSWORD_EMAIL', 'ucbg rykk jptm xgyn')
+        self.email_destinatari = os.getenv('EMAIL_DESTINATARI', 'f.satta@innovazione.gov.it').split(',')
         
-        # Configurazione SMTP Microsoft 365
-        self.smtp_server = 'smtp.office365.com'
+        # Configurazione SMTP Gmail
+        self.smtp_server = 'smtp.gmail.com'
         self.smtp_port = 587
         
-        # Configurazione SharePoint
-        self.sharepoint_url = os.getenv('SHAREPOINT_URL')
+        # Configurazione SharePoint - COMMENTATA per sicurezza
+        # self.sharepoint_url = os.getenv('SHAREPOINT_URL')
         
         # Validazione configurazione
         if not all([self.email_mittente, self.password_email, self.email_destinatari[0]]):
-            raise ValueError("Configurazione email aziendale incompleta. Verificare le variabili d'ambiente.")
+            raise ValueError("Configurazione email incompleta. Verificare le variabili d'ambiente.")
 
     def load_csv_data(self, csv_file_path: str) -> pd.DataFrame:
         """Carica i dati dal file CSV con gestione automatica encoding e separatori"""
@@ -170,78 +170,20 @@ class AsseverazioniReminderManager:
             return sharepoint_url
 
     def download_excel_from_sharepoint(self, sharepoint_url: str) -> str:
-        """Scarica il file Excel da SharePoint con multiple strategie"""
-        try:
-            import requests
-            
-            logger.info(f"Tentativo di download da SharePoint...")
-            
-            # Strategia 1: Prova download diretto con parametri
-            download_urls = [
-                f"{sharepoint_url}&download=1",
-                f"{sharepoint_url.split('?')[0]}?download=1",
-                sharepoint_url,  # Link originale
-            ]
-            
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,*/*',
-                'Accept-Language': 'it-IT,it;q=0.9,en;q=0.8'
-            }
-            
-            for i, url in enumerate(download_urls):
-                try:
-                    logger.info(f"Strategia {i+1}: {url[:100]}...")
-                    
-                    response = requests.get(url, headers=headers, allow_redirects=True, timeout=30)
-                    response.raise_for_status()
-                    
-                    # Verifica che sia un file Excel e non HTML
-                    content_type = response.headers.get('content-type', '').lower()
-                    content = response.content
-                    
-                    logger.info(f"Content-Type: {content_type}")
-                    logger.info(f"Dimensione risposta: {len(content)} bytes")
-                    logger.info(f"Primi 100 caratteri: {content[:100]}")
-                    
-                    # Controlla se è HTML (pagina di login)
-                    if content.startswith(b'<!DOCTYPE html') or content.startswith(b'<html'):
-                        logger.warning(f"Strategia {i+1}: Ricevuto HTML invece di Excel (probabilmente pagina di login)")
-                        continue
-                    
-                    # Controlla se è un file Excel valido
-                    if (content.startswith(b'PK\x03\x04') or  # ZIP signature (xlsx)
-                        content.startswith(b'\xd0\xcf\x11\xe0') or  # OLE signature (xls)
-                        'spreadsheet' in content_type or
-                        'excel' in content_type):
-                        
-                        # Salva il file
-                        temp_file_path = 'temp_asseverazioni.xlsx'
-                        with open(temp_file_path, 'wb') as f:
-                            f.write(content)
-                        
-                        logger.info(f"✅ File Excel scaricato con successo con strategia {i+1}")
-                        return temp_file_path
-                    else:
-                        logger.warning(f"Strategia {i+1}: Il contenuto non sembra un file Excel valido")
-                        
-                except requests.exceptions.RequestException as e:
-                    logger.warning(f"Strategia {i+1} fallita: {e}")
-                    continue
-            
-            # Se tutte le strategie falliscono, solleva eccezione
-            raise Exception("Tutte le strategie di download sono fallite. Il file potrebbe richiedere autenticazione.")
-            
-        except Exception as e:
-            logger.error(f"Errore nel download da SharePoint: {e}")
-            
-            # Suggerimenti per l'utente
-            logger.error("POSSIBILI SOLUZIONI:")
-            logger.error("1. Verifica che il link di condivisione sia 'Chiunque con il collegamento può visualizzare'")
-            logger.error("2. Prova a scaricare manualmente il file e caricarlo nel repository GitHub")
-            logger.error("3. Considera l'uso di Microsoft Graph API per l'autenticazione")
-            
-            raise
+        """METODO COMMENTATO - Scarica il file Excel da SharePoint con multiple strategie"""
+        # FUNZIONALITÀ DISABILITATA PER SICUREZZA
+        logger.warning("🚫 Download SharePoint disabilitato per sicurezza")
+        logger.info("💡 Usa file locale CSV: data/asseverazioni.csv")
+        raise Exception("Download SharePoint non disponibile - usa file locale")
+        
+        # CODICE ORIGINALE COMMENTATO:
+        # try:
+        #     import requests
+        #     logger.info(f"Tentativo di download da SharePoint...")
+        #     # ... resto del codice SharePoint commentato per sicurezza
+        # except Exception as e:
+        #     logger.error(f"Errore nel download da SharePoint: {e}")
+        #     raise
 
     def load_excel_data(self, file_path: str = None, sharepoint_url: str = None) -> pd.DataFrame:
         """Carica i dati dal file Excel (locale o SharePoint)"""
@@ -699,22 +641,22 @@ def main():
         # Carica e processa i dati
         logger.info("Avvio elaborazione asseverazioni...")
         
-        # Priorità: CSV locale, poi SharePoint, poi Excel locale
+        # Priorità: CSV locale (UNICA opzione attiva)
         csv_file_path = 'data/asseverazioni.csv'
         excel_file_path = 'data/asseverazioni.xlsx'
-        sharepoint_url = os.getenv('SHAREPOINT_URL')
+        # sharepoint_url = os.getenv('SHAREPOINT_URL')  # COMMENTATO per sicurezza
         
         if os.path.exists(csv_file_path):
-            logger.info("Usando file CSV locale...")
+            logger.info("✅ Usando file CSV locale...")
             df = reminder.load_csv_data(csv_file_path)
-        elif sharepoint_url:
-            logger.info("Usando file da SharePoint...")
-            df = reminder.load_excel_data(sharepoint_url=sharepoint_url)
         elif os.path.exists(excel_file_path):
-            logger.info("Usando file Excel locale...")
+            logger.info("✅ Usando file Excel locale (fallback)...")
             df = reminder.load_excel_data(file_path=excel_file_path)
+        # elif sharepoint_url:  # COMMENTATO
+        #     logger.info("Usando file da SharePoint...")
+        #     df = reminder.load_excel_data(sharepoint_url=sharepoint_url)
         else:
-            raise FileNotFoundError("Nessun file dati trovato. Caricare asseverazioni.csv o asseverazioni.xlsx in data/")
+            raise FileNotFoundError("❌ Nessun file dati trovato. Caricare asseverazioni.csv in data/")
         df = reminder.parse_date_column(df)
         partial_df = reminder.filter_partial_assessments(df)
         
@@ -752,11 +694,11 @@ def main():
         logger.info(html_content)
         logger.info("=" * 80)
         
-        # Tenta l'invio email - COMMENTATO per evitare problemi con account aziendale
+        # Tenta l'invio email Gmail - RIABILITATO
         try:
-            logger.info("📧 Invio email DISABILITATO per protezione account aziendale")
-            logger.info("💡 Per abilitare l'invio, decommentare la riga reminder.send_email(html_content)")
-            # reminder.send_email(html_content)  # COMMENTATO
+            logger.info("📧 Tentativo invio email via Gmail...")
+            reminder.send_email(html_content)
+            logger.info("✅ Email inviata con successo!")
         except Exception as email_error:
             logger.warning(f"⚠️ Invio email fallito: {email_error}")
             logger.info("💡 Email non inviata, ma contenuto generato correttamente (vedi log sopra)")
