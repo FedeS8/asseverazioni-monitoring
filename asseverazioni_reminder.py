@@ -38,56 +38,116 @@ class AsseverazioniReminderManager:
     def convert_sharepoint_url_to_download(self, sharepoint_url: str) -> str:
         """Converte un link di condivisione SharePoint in URL di download diretto"""
         try:
-            # Estrae l'ID del documento dal link SharePoint
+            # Metodo 1: Conversione link di condivisione in download diretto
             if '/:x:/g/personal/' in sharepoint_url:
-                # Pattern per estrarre l'ID dal link SharePoint
-                import re
-                pattern = r'/([A-Za-z0-9_-]{20,})'
-                match = re.search(pattern, sharepoint_url.split('?')[0])
+                # Estrae i parametri dal link
+                import urllib.parse as urlparse
+                parsed = urlparse.urlparse(sharepoint_url)
                 
-                if match:
-                    doc_id = match.group(1)
-                    # Costruisce l'URL di download diretto
-                    base_url = sharepoint_url.split('/:x:/g/')[0]
-                    download_url = f"{base_url}/_layouts/15/download.aspx?SourceUrl={sharepoint_url.split('?')[0]}"
-                    return download_url
+                # Costruisce URL di download Microsoft
+                if 'sharepoint.com' in sharepoint_url:
+                    # Prova formato download diretto
+                    base_url = f"{parsed.scheme}://{parsed.netloc}"
+                    
+                    # Estrae l'ID del documento
+                    import re
+                    doc_match = re.search(r'/([A-Za-z0-9_-]{20,})/', sharepoint_url)
+                    if doc_match:
+                        doc_id = doc_match.group(1)
+                        
+                        # Prova diversi formati di download
+                        download_formats = [
+                            f"{base_url}/_layouts/15/download.aspx?share={doc_id}",
+                            f"{sharepoint_url}&download=1",
+                            f"{sharepoint_url.split('?')[0]}?download=1",
+                            sharepoint_url.replace('/:x:/', '/_layouts/15/download.aspx?SourceUrl=')
+                        ]
+                        
+                        # Restituisce il primo formato
+                        return download_formats[1]  # Prova con &download=1
             
-            # Se non riesce a convertire, prova con il link originale
-            return sharepoint_url
+            # Fallback: aggiunge parametro download
+            if '?' in sharepoint_url:
+                return f"{sharepoint_url}&download=1"
+            else:
+                return f"{sharepoint_url}?download=1"
             
         except Exception as e:
-            logger.warning(f"Errore nella conversione URL SharePoint: {e}. Uso URL originale.")
+            logger.warning(f"Errore nella conversione URL SharePoint: {e}")
             return sharepoint_url
 
     def download_excel_from_sharepoint(self, sharepoint_url: str) -> str:
-        """Scarica il file Excel da SharePoint"""
+        """Scarica il file Excel da SharePoint con multiple strategie"""
         try:
             import requests
             
-            # Converte l'URL in formato download se necessario
-            download_url = self.convert_sharepoint_url_to_download(sharepoint_url)
+            logger.info(f"Tentativo di download da SharePoint...")
             
-            logger.info(f"Scaricamento file da SharePoint: {download_url[:100]}...")
+            # Strategia 1: Prova download diretto con parametri
+            download_urls = [
+                f"{sharepoint_url}&download=1",
+                f"{sharepoint_url.split('?')[0]}?download=1",
+                sharepoint_url,  # Link originale
+            ]
             
-            # Headers per simulare un browser
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,*/*',
+                'Accept-Language': 'it-IT,it;q=0.9,en;q=0.8'
             }
             
-            # Scarica il file
-            response = requests.get(download_url, headers=headers, allow_redirects=True)
-            response.raise_for_status()
+            for i, url in enumerate(download_urls):
+                try:
+                    logger.info(f"Strategia {i+1}: {url[:100]}...")
+                    
+                    response = requests.get(url, headers=headers, allow_redirects=True, timeout=30)
+                    response.raise_for_status()
+                    
+                    # Verifica che sia un file Excel e non HTML
+                    content_type = response.headers.get('content-type', '').lower()
+                    content = response.content
+                    
+                    logger.info(f"Content-Type: {content_type}")
+                    logger.info(f"Dimensione risposta: {len(content)} bytes")
+                    logger.info(f"Primi 100 caratteri: {content[:100]}")
+                    
+                    # Controlla se è HTML (pagina di login)
+                    if content.startswith(b'<!DOCTYPE html') or content.startswith(b'<html'):
+                        logger.warning(f"Strategia {i+1}: Ricevuto HTML invece di Excel (probabilmente pagina di login)")
+                        continue
+                    
+                    # Controlla se è un file Excel valido
+                    if (content.startswith(b'PK\x03\x04') or  # ZIP signature (xlsx)
+                        content.startswith(b'\xd0\xcf\x11\xe0') or  # OLE signature (xls)
+                        'spreadsheet' in content_type or
+                        'excel' in content_type):
+                        
+                        # Salva il file
+                        temp_file_path = 'temp_asseverazioni.xlsx'
+                        with open(temp_file_path, 'wb') as f:
+                            f.write(content)
+                        
+                        logger.info(f"✅ File Excel scaricato con successo con strategia {i+1}")
+                        return temp_file_path
+                    else:
+                        logger.warning(f"Strategia {i+1}: Il contenuto non sembra un file Excel valido")
+                        
+                except requests.exceptions.RequestException as e:
+                    logger.warning(f"Strategia {i+1} fallita: {e}")
+                    continue
             
-            # Salva temporaneamente
-            temp_file_path = 'temp_asseverazioni.xlsx'
-            with open(temp_file_path, 'wb') as f:
-                f.write(response.content)
-            
-            logger.info(f"File scaricato con successo: {len(response.content)} bytes")
-            return temp_file_path
+            # Se tutte le strategie falliscono, solleva eccezione
+            raise Exception("Tutte le strategie di download sono fallite. Il file potrebbe richiedere autenticazione.")
             
         except Exception as e:
             logger.error(f"Errore nel download da SharePoint: {e}")
+            
+            # Suggerimenti per l'utente
+            logger.error("POSSIBILI SOLUZIONI:")
+            logger.error("1. Verifica che il link di condivisione sia 'Chiunque con il collegamento può visualizzare'")
+            logger.error("2. Prova a scaricare manualmente il file e caricarlo nel repository GitHub")
+            logger.error("3. Considera l'uso di Microsoft Graph API per l'autenticazione")
+            
             raise
 
     def load_excel_data(self, file_path: str = None, sharepoint_url: str = None) -> pd.DataFrame:
