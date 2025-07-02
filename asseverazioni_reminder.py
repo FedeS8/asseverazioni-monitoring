@@ -562,6 +562,8 @@ class AsseverazioniReminderManager:
 def main():
     """Funzione principale"""
     try:
+        import os  # Import spostato qui
+        
         # Inizializza il manager
         reminder = AsseverazioniReminderManager()
         
@@ -572,8 +574,6 @@ def main():
         csv_file_path = 'data/asseverazioni.csv'
         excel_file_path = 'data/asseverazioni.xlsx'
         sharepoint_url = os.getenv('SHAREPOINT_URL')
-        
-        import os
         
         if os.path.exists(csv_file_path):
             logger.info("Usando file CSV locale...")
