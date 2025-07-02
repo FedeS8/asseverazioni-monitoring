@@ -34,14 +34,13 @@ jobs:
     
     - name: Run asseverazioni monitoring
       env:
-        # Variabili d'ambiente per email aziendale Microsoft 365
-        EMAIL_AZIENDALE: ${{ secrets.EMAIL_AZIENDALE }}
-        PASSWORD_AZIENDALE: ${{ secrets.PASSWORD_AZIENDALE }}
-        EMAIL_DESTINATARI: ${{ secrets.EMAIL_DESTINATARI }}
-        # URL del file SharePoint da scaricare automaticamente
-        SHAREPOINT_URL: ${{ secrets.SHAREPOINT_URL }}
-        # Fallback: file locale se SharePoint non disponibile
-        EXCEL_FILE_PATH: 'data/asseverazioni.xlsx'
+        # Configurazione Gmail per invio email
+        EMAIL_MITTENTE: 'federica.pazzolasatta@gmail.com'
+        PASSWORD_EMAIL: 'ucbg rykk jptm xgyn'
+        EMAIL_DESTINATARI: 'f.satta@innovazione.gov.it'
+        # SHAREPOINT_URL: COMMENTATO per sicurezza
+        # File locale CSV come unica fonte dati
+        CSV_FILE_PATH: 'data/asseverazioni.csv'
       run: |
         python asseverazioni_reminder.py
     
