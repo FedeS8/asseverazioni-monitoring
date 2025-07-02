@@ -1,0 +1,50 @@
+name: Monitoraggio Asseverazioni Parziali
+
+on:
+  schedule:
+    # Ogni lunedì alle 8:00 UTC (10:00 ora italiana)
+    - cron: '0 8 * * 1'
+  
+  # Permetti esecuzione manuale per test
+  workflow_dispatch:
+
+jobs:
+  monitor-asseverazioni:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas openpyxl requests
+    
+    - name: Download Excel file
+      run: |
+        # Il file verrà scaricato automaticamente da SharePoint tramite SHAREPOINT_URL
+        # Non serve più scaricare manualmente
+        echo "File Excel sarà scaricato automaticamente da SharePoint"
+    
+    - name: Run asseverazioni monitoring
+      env:
+        # Variabili d'ambiente per email aziendale Microsoft 365
+        EMAIL_AZIENDALE: ${{ secrets.EMAIL_AZIENDALE }}
+        PASSWORD_AZIENDALE: ${{ secrets.PASSWORD_AZIENDALE }}
+        EMAIL_DESTINATARI: ${{ secrets.EMAIL_DESTINATARI }}
+        # URL del file SharePoint da scaricare automaticamente
+        SHAREPOINT_URL: ${{ secrets.SHAREPOINT_URL }}
+        # Fallback: file locale se SharePoint non disponibile
+        EXCEL_FILE_PATH: 'data/asseverazioni.xlsx'
+      run: |
+        python asseverazioni_reminder.py
+    
+    - name: Log completion
+      run: |
+        echo "✅ Monitoraggio asseverazioni completato il $(date)"
