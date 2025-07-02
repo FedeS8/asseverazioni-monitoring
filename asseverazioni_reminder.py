@@ -341,17 +341,31 @@ class AsseverazioniReminderManager:
         return partial_df_unique
     
     def categorize_alerts(self, df: pd.DataFrame) -> Dict[str, List[Dict]]:
-        """Categorizza gli alert in base allo stato e ai giorni"""
+        """Categorizza gli alert in base allo stato, giorni e misura PNRR"""
         alerts = {
-            'ente_15_giorni': [],
-            'ente_30_giorni': [],
-            'verifica_15_giorni': [],
-            'verifica_30_giorni': []
+            'ente_1_2_15_giorni': [],
+            'ente_1_2_30_giorni': [],
+            'ente_1_4_1_15_giorni': [],
+            'ente_1_4_1_30_giorni': [],
+            'verifica_1_2_15_giorni': [],
+            'verifica_1_2_30_giorni': [],
+            'verifica_1_4_1_15_giorni': [],
+            'verifica_1_4_1_30_giorni': []
         }
         
         for _, row in df.iterrows():
             giorni = row['Giorni da ultima assegnazione']
             stato = row['Stato progetto']
+            oggetto = row['Oggetto']
+            
+            # Determina la misura PNRR dall'oggetto
+            if '1.2' in oggetto:
+                misura = '1_2'
+            elif '1.4.1' in oggetto:
+                misura = '1_4_1'
+            else:
+                logger.warning(f"Misura non riconosciuta per: {row['Nome ente']} - {oggetto}")
+                continue  # Salta se non riconosce la misura
             
             # Gestisce valori NaN nella colonna "L'asseverazione è bloccata?"
             is_blocked_value = row['L\'asseverazione è bloccata?']
@@ -373,25 +387,26 @@ class AsseverazioniReminderManager:
                 'data_ultima_assegnazione': row['Data ultima assegnazione'].strftime('%d/%m/%Y %H:%M'),
                 'giorni': int(giorni),
                 'is_blocked': is_blocked,
-                'stato': stato
+                'stato': stato,
+                'misura': misura
             }
             
-            # Categorizzazione basata su stato e giorni
+            # Categorizzazione basata su stato, misura e giorni
             if stato == 'AVVIATO':
                 if giorni >= 30:
-                    alerts['ente_30_giorni'].append(alert_data)
+                    alerts[f'ente_{misura}_30_giorni'].append(alert_data)
                 elif giorni >= 15:
-                    alerts['ente_15_giorni'].append(alert_data)
+                    alerts[f'ente_{misura}_15_giorni'].append(alert_data)
                     
             elif stato == 'IN VERIFICA' and not is_blocked:
                 if giorni >= 30:
-                    alerts['verifica_30_giorni'].append(alert_data)
+                    alerts[f'verifica_{misura}_30_giorni'].append(alert_data)
                 elif giorni >= 15:
-                    alerts['verifica_15_giorni'].append(alert_data)
+                    alerts[f'verifica_{misura}_15_giorni'].append(alert_data)
         
         # Log dei risultati
         total_alerts = sum(len(v) for v in alerts.values())
-        logger.info(f"Generati {total_alerts} alert categorizzati")
+        logger.info(f"Generati {total_alerts} alert categorizzati per misura")
         
         for category, items in alerts.items():
             if items:
@@ -400,147 +415,177 @@ class AsseverazioniReminderManager:
         return alerts
     
     def generate_secure_html_email(self, alerts: Dict[str, List[Dict]]) -> str:
-        """Genera email con dati aggregati per sicurezza aziendale"""
+        """Genera email con dati dettagliati raggruppati per misura PNRR"""
         today = datetime.now().strftime('%d/%m/%Y')
         
         # Calcola statistiche aggregate
         total_alerts = sum(len(v) for v in alerts.values())
-        ente_total = len(alerts['ente_15_giorni']) + len(alerts['ente_30_giorni'])
-        verifica_total = len(alerts['verifica_15_giorni']) + len(alerts['verifica_30_giorni'])
-        urgenti_total = len(alerts['ente_30_giorni']) + len(alerts['verifica_30_giorni'])
+        
+        # Raggruppa per tipo di azione
+        ente_alerts = {
+            '1_2': alerts['ente_1_2_15_giorni'] + alerts['ente_1_2_30_giorni'],
+            '1_4_1': alerts['ente_1_4_1_15_giorni'] + alerts['ente_1_4_1_30_giorni']
+        }
+        
+        verifica_alerts = {
+            '1_2': alerts['verifica_1_2_15_giorni'] + alerts['verifica_1_2_30_giorni'],
+            '1_4_1': alerts['verifica_1_4_1_15_giorni'] + alerts['verifica_1_4_1_30_giorni']
+        }
+        
+        urgenti_total = (len(alerts['ente_1_2_30_giorni']) + len(alerts['ente_1_4_1_30_giorni']) + 
+                        len(alerts['verifica_1_2_30_giorni']) + len(alerts['verifica_1_4_1_30_giorni']))
         
         if total_alerts == 0:
             return f"""
             <html>
             <body style="font-family: Arial, sans-serif;">
-                <h2>✅ Monitoraggio Asseverazioni - {today}</h2>
+                <h2>✅ Monitoraggio Asseverazioni PNRR - {today}</h2>
                 <p><strong>Stato: TUTTO OK</strong></p>
                 <p>Nessuna asseverazione in Parziale da oltre 15 giorni.</p>
                 <p>Ottimo lavoro! Tutte le asseverazioni sono aggiornate.</p>
-                
-                <hr style="margin: 20px 0;">
-                <p style="font-size: 0.9em; color: #666;">
-                    Report automatico - Sistema di monitoraggio PNRR
-                </p>
             </body>
             </html>
             """
-        
-        # Genera statistiche per categorie di enti (senza esporre nomi)
-        enti_stats = self._generate_entity_stats(alerts)
         
         html_content = f"""
         <html>
         <body style="font-family: Arial, sans-serif;">
             <h2>🔔 Monitoraggio Asseverazioni PNRR - {today}</h2>
-            <p>Report settimanale delle asseverazioni che richiedono attenzione:</p>
             
             <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #007acc; margin: 20px 0;">
                 <h3 style="margin-top: 0; color: #007acc;">📊 Riepilogo Esecutivo</h3>
-                <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                        <td style="padding: 8px; font-weight: bold;">Totale asseverazioni da monitorare:</td>
-                        <td style="padding: 8px; text-align: right;"><strong>{total_alerts}</strong></td>
-                    </tr>
-                    <tr style="background-color: #fff3e0;">
-                        <td style="padding: 8px;">🔴 Situazioni urgenti (>30gg):</td>
-                        <td style="padding: 8px; text-align: right;"><strong>{urgenti_total}</strong></td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 8px;">📞 Enti da contattare (AVVIATO):</td>
-                        <td style="padding: 8px; text-align: right;">{ente_total}</td>
-                    </tr>
-                    <tr style="background-color: #f0f8ff;">
-                        <td style="padding: 8px;">⚡ Verifiche da completare (IN VERIFICA):</td>
-                        <td style="padding: 8px; text-align: right;">{verifica_total}</td>
-                    </tr>
-                </table>
+                <p><strong>Totale asseverazioni da monitorare:</strong> {total_alerts}</p>
+                <p><strong>🔴 Situazioni urgenti (>30gg):</strong> {urgenti_total}</p>
             </div>
         """
         
-        # Sezione azioni per enti (aggregata)
+        # Sezione: Enti da contattare
+        ente_total = sum(len(alerts) for alerts in ente_alerts.values())
         if ente_total > 0:
-            html_content += f"""
-            <div style="margin: 20px 0;">
-                <h3>📞 Enti da Contattare (AVVIATO)</h3>
-                <p><strong>Azione:</strong> Stimolare risposta dagli enti</p>
-                
-                <table border="1" style="border-collapse: collapse; width: 100%; margin: 10px 0;">
-                    <tr style="background-color: #f2f2f2;">
-                        <th style="padding: 10px;">Categoria Ente</th>
-                        <th style="padding: 10px;">Progetti</th>
-                        <th style="padding: 10px;">Urgenti (>30gg)</th>
-                        <th style="padding: 10px;">Attenzione (15-30gg)</th>
-                    </tr>
+            html_content += """
+            <div style="margin: 30px 0;">
+                <h3>📞 ENTI DA CONTATTARE ASAP</h3>
             """
             
-            for categoria, stats in enti_stats['enti'].items():
-                html_content += f"""
-                    <tr>
-                        <td style="padding: 10px;">{categoria}</td>
-                        <td style="padding: 10px; text-align: center;">{stats['totale']}</td>
-                        <td style="padding: 10px; text-align: center; background-color: #ffcdd2;">{stats['urgenti']}</td>
-                        <td style="padding: 10px; text-align: center; background-color: #fff3e0;">{stats['normali']}</td>
-                    </tr>
+            # Misura 1.2
+            if len(ente_alerts['1_2']) > 0:
+                html_content += """
+                <h4 style="color: #0066cc;">🔹 Misura 1.2 - Abilitazione al Cloud</h4>
                 """
+                
+                # Urgenti 1.2
+                urgenti_1_2 = alerts['ente_1_2_30_giorni']
+                if urgenti_1_2:
+                    html_content += '<p style="margin: 10px 0;"><strong>🔴 URGENTI (&gt;30gg):</strong></p><ul>'
+                    for alert in urgenti_1_2:
+                        html_content += f'<li style="color: #d32f2f;"><strong>{alert["nome_ente"]}</strong> ({alert["funding_request"]}) - {alert["giorni"]} giorni</li>'
+                    html_content += '</ul>'
+                
+                # Attenzione 1.2
+                attenzione_1_2 = alerts['ente_1_2_15_giorni']
+                if attenzione_1_2:
+                    html_content += '<p style="margin: 10px 0;"><strong>⚠️ ATTENZIONE (15-30gg):</strong></p><ul>'
+                    for alert in attenzione_1_2:
+                        html_content += f'<li style="color: #f57c00;">{alert["nome_ente"]} ({alert["funding_request"]}) - {alert["giorni"]} giorni</li>'
+                    html_content += '</ul>'
             
-            html_content += "</table></div>"
+            # Misura 1.4.1
+            if len(ente_alerts['1_4_1']) > 0:
+                html_content += """
+                <h4 style="color: #0066cc;">🔹 Misura 1.4.1 - Esperienza del Cittadino</h4>
+                """
+                
+                # Urgenti 1.4.1
+                urgenti_1_4_1 = alerts['ente_1_4_1_30_giorni']
+                if urgenti_1_4_1:
+                    html_content += '<p style="margin: 10px 0;"><strong>🔴 URGENTI (&gt;30gg):</strong></p><ul>'
+                    for alert in urgenti_1_4_1:
+                        html_content += f'<li style="color: #d32f2f;"><strong>{alert["nome_ente"]}</strong> ({alert["funding_request"]}) - {alert["giorni"]} giorni</li>'
+                    html_content += '</ul>'
+                
+                # Attenzione 1.4.1
+                attenzione_1_4_1 = alerts['ente_1_4_1_15_giorni']
+                if attenzione_1_4_1:
+                    html_content += '<p style="margin: 10px 0;"><strong>⚠️ ATTENZIONE (15-30gg):</strong></p><ul>'
+                    for alert in attenzione_1_4_1:
+                        html_content += f'<li style="color: #f57c00;">{alert["nome_ente"]} ({alert["funding_request"]}) - {alert["giorni"]} giorni</li>'
+                    html_content += '</ul>'
+            
+            html_content += "</div>"
         
-        # Sezione verifiche interne (aggregata)
+        # Sezione: Verifiche interne
+        verifica_total = sum(len(alerts) for alerts in verifica_alerts.values())
         if verifica_total > 0:
-            html_content += f"""
-            <div style="margin: 20px 0;">
-                <h3>⚡ Verifiche Interne da Completare</h3>
-                <p><strong>Azione:</strong> Affrettare verifiche tecniche (controllare eventuali blocchi istruttori)</p>
-                
-                <table border="1" style="border-collapse: collapse; width: 100%; margin: 10px 0;">
-                    <tr style="background-color: #f2f2f2;">
-                        <th style="padding: 10px;">Categoria Ente</th>
-                        <th style="padding: 10px;">Progetti</th>
-                        <th style="padding: 10px;">Urgenti (>30gg)</th>
-                        <th style="padding: 10px;">Attenzione (15-30gg)</th>
-                        <th style="padding: 10px;">Potenzialmente Bloccati</th>
-                    </tr>
+            html_content += """
+            <div style="margin: 30px 0;">
+                <h3>⚡ PROCEDI CON ASSEVERAZIONE TECNICA</h3>
+                <p style="font-style: italic; color: #666;">(salvo blocchi dovuti ad istruttoria/blocchi ACN)</p>
             """
             
-            for categoria, stats in enti_stats['verifiche'].items():
-                html_content += f"""
-                    <tr>
-                        <td style="padding: 10px;">{categoria}</td>
-                        <td style="padding: 10px; text-align: center;">{stats['totale']}</td>
-                        <td style="padding: 10px; text-align: center; background-color: #ffcdd2;">{stats['urgenti']}</td>
-                        <td style="padding: 10px; text-align: center; background-color: #fff3e0;">{stats['normali']}</td>
-                        <td style="padding: 10px; text-align: center; background-color: #e8f5e8;">{stats['bloccati']}</td>
-                    </tr>
+            # Misura 1.2 Verifiche
+            if len(verifica_alerts['1_2']) > 0:
+                html_content += """
+                <h4 style="color: #0066cc;">🔹 Misura 1.2 - Abilitazione al Cloud</h4>
                 """
+                
+                # Urgenti verifica 1.2
+                urgenti_v_1_2 = alerts['verifica_1_2_30_giorni']
+                if urgenti_v_1_2:
+                    html_content += '<p style="margin: 10px 0;"><strong>🔴 URGENTI (&gt;30gg):</strong></p><ul>'
+                    for alert in urgenti_v_1_2:
+                        blocked_text = ' ⛔ BLOCCATO' if alert['is_blocked'] else ''
+                        html_content += f'<li style="color: #d32f2f;"><strong>{alert["nome_ente"]}</strong> ({alert["funding_request"]}) - {alert["giorni"]} giorni{blocked_text}</li>'
+                    html_content += '</ul>'
+                
+                # Attenzione verifica 1.2
+                attenzione_v_1_2 = alerts['verifica_1_2_15_giorni']
+                if attenzione_v_1_2:
+                    html_content += '<p style="margin: 10px 0;"><strong>⚠️ ATTENZIONE (15-30gg):</strong></p><ul>'
+                    for alert in attenzione_v_1_2:
+                        blocked_text = ' ⛔ BLOCCATO' if alert['is_blocked'] else ''
+                        html_content += f'<li style="color: #f57c00;">{alert["nome_ente"]} ({alert["funding_request"]}) - {alert["giorni"]} giorni{blocked_text}</li>'
+                    html_content += '</ul>'
             
-            html_content += "</table></div>"
+            # Misura 1.4.1 Verifiche
+            if len(verifica_alerts['1_4_1']) > 0:
+                html_content += """
+                <h4 style="color: #0066cc;">🔹 Misura 1.4.1 - Esperienza del Cittadino</h4>
+                """
+                
+                # Urgenti verifica 1.4.1
+                urgenti_v_1_4_1 = alerts['verifica_1_4_1_30_giorni']
+                if urgenti_v_1_4_1:
+                    html_content += '<p style="margin: 10px 0;"><strong>🔴 URGENTI (&gt;30gg):</strong></p><ul>'
+                    for alert in urgenti_v_1_4_1:
+                        blocked_text = ' ⛔ BLOCCATO' if alert['is_blocked'] else ''
+                        html_content += f'<li style="color: #d32f2f;"><strong>{alert["nome_ente"]}</strong> ({alert["funding_request"]}) - {alert["giorni"]} giorni{blocked_text}</li>'
+                    html_content += '</ul>'
+                
+                # Attenzione verifica 1.4.1
+                attenzione_v_1_4_1 = alerts['verifica_1_4_1_15_giorni']
+                if attenzione_v_1_4_1:
+                    html_content += '<p style="margin: 10px 0;"><strong>⚠️ ATTENZIONE (15-30gg):</strong></p><ul>'
+                    for alert in attenzione_v_1_4_1:
+                        blocked_text = ' ⛔ BLOCCATO' if alert['is_blocked'] else ''
+                        html_content += f'<li style="color: #f57c00;">{alert["nome_ente"]} ({alert["funding_request"]}) - {alert["giorni"]} giorni{blocked_text}</li>'
+                    html_content += '</ul>'
+            
+            html_content += "</div>"
         
-        # Raccomandazioni strategiche
+        # Riepilogo finale
         html_content += f"""
+        <hr style="margin: 30px 0;">
         <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #28a745; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #28a745;">💡 Raccomandazioni</h3>
+            <h3 style="margin-top: 0; color: #28a745;">📊 Statistiche</h3>
             <ul>
-        """
-        
-        if urgenti_total > 0:
-            html_content += f"<li><strong>Priorità ALTA:</strong> {urgenti_total} situazioni urgenti (>30gg) richiedono intervento immediato</li>"
-        
-        if ente_total > 0:
-            html_content += f"<li><strong>Contatti enti:</strong> Pianificare outreach per {ente_total} progetti in attesa di risposta</li>"
-        
-        if verifica_total > 0:
-            html_content += f"<li><strong>Verifiche interne:</strong> Accelerare processo di verifica per {verifica_total} progetti</li>"
-        
-        html_content += """
+                <li><strong>Enti da contattare ASAP:</strong> {ente_total}</li>
+                <li><strong>Verifiche tecniche da completare:</strong> {verifica_total}</li>
+                <li><strong>Priorità ALTA (>30gg):</strong> {urgenti_total}</li>
             </ul>
         </div>
         
-        <hr style="margin: 30px 0;">
-        <p style="font-size: 0.9em; color: #666;">
-            <strong>Nota sulla Privacy:</strong> Questo report contiene solo dati aggregati per motivi di sicurezza.<br>
-            Per dettagli specifici, consultare il sistema interno di gestione asseverazioni.<br><br>
-            <em>Report generato automaticamente dal sistema di monitoraggio PNRR</em>
+        <p style="font-size: 0.9em; color: #666; margin-top: 30px;">
+            <em>Report generato automaticamente dal sistema di monitoraggio PNRR - {today}</em>
         </p>
         </body>
         </html>
@@ -549,61 +594,10 @@ class AsseverazioniReminderManager:
         return html_content
 
     def _generate_entity_stats(self, alerts: Dict[str, List[Dict]]) -> Dict:
-        """Genera statistiche aggregate per categoria di ente (senza esporre nomi specifici)"""
-        stats = {
-            'enti': {},
-            'verifiche': {}
-        }
-        
-        # Analizza alert per enti
-        all_ente_alerts = alerts['ente_15_giorni'] + alerts['ente_30_giorni']
-        self._categorize_alerts_by_type(all_ente_alerts, stats['enti'], alerts['ente_30_giorni'])
-        
-        # Analizza alert per verifiche
-        all_verifica_alerts = alerts['verifica_15_giorni'] + alerts['verifica_30_giorni']
-        self._categorize_alerts_by_type(all_verifica_alerts, stats['verifiche'], alerts['verifica_30_giorni'])
-        
-        return stats
-
-    def _categorize_alerts_by_type(self, all_alerts: List[Dict], stats_dict: Dict, urgent_alerts: List[Dict]):
-        """Categorizza alert per tipo di ente senza esporre dati sensibili"""
-        for alert in all_alerts:
-            nome_ente = alert['nome_ente'].upper()
-            
-            # Categorizza per tipo di ente (senza esporre nomi specifici)
-            if 'COMUNE' in nome_ente:
-                categoria = 'Comuni'
-            elif any(word in nome_ente for word in ['ISTITUTO', 'SCUOLA', 'COMPRENSIVO']):
-                categoria = 'Istituti Scolastici'
-            elif any(word in nome_ente for word in ['PROVINCIA', 'REGIONE']):
-                categoria = 'Enti Territoriali'
-            elif any(word in nome_ente for word in ['ASL', 'OSPEDALE', 'SANITARIO']):
-                categoria = 'Enti Sanitari'
-            else:
-                categoria = 'Altri Enti'
-            
-            # Inizializza categoria se non esiste
-            if categoria not in stats_dict:
-                stats_dict[categoria] = {
-                    'totale': 0,
-                    'urgenti': 0,
-                    'normali': 0,
-                    'bloccati': 0
-                }
-            
-            # Aggiorna contatori
-            stats_dict[categoria]['totale'] += 1
-            
-            # Controlla se è urgente
-            is_urgent = any(urgent['funding_request'] == alert['funding_request'] for urgent in urgent_alerts)
-            if is_urgent:
-                stats_dict[categoria]['urgenti'] += 1
-            else:
-                stats_dict[categoria]['normali'] += 1
-            
-            # Controlla se potenzialmente bloccato
-            if alert.get('is_blocked', False):
-                stats_dict[categoria]['bloccati'] += 1
+        """METODO LEGACY - Non più utilizzato con il nuovo formato dettagliato"""
+        # Questo metodo non è più necessario con il nuovo formato
+        # ma lo manteniamo per compatibilità
+        return {'enti': {}, 'verifiche': {}}
     
     def send_email(self, html_content: str):
         """Invia l'email di reminder"""
