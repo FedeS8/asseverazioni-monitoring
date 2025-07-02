@@ -425,13 +425,13 @@ class AsseverazioniReminderManager:
         # Enti da contattare 1.2
         for alert in alerts['ente_1_2_15_giorni'] + alerts['ente_1_2_30_giorni']:
             alert['tipo_azione'] = 'CONTATTARE ENTE'
-            alert['raccomandazione'] = 'L\'ente non ha ancora risposto al tuo esito parziale, contattalo al più presto'
+            alert['raccomandazione'] = f'L\'ente non ha ancora risposto al tuo esito parziale da {alert["giorni"]} giorni, contattalo al più presto'
             alerts_1_2.append(alert)
         
         # Verifiche interne 1.2
         for alert in alerts['verifica_1_2_15_giorni'] + alerts['verifica_1_2_30_giorni']:
             alert['tipo_azione'] = 'PROCEDERE CON VERIFICA'
-            base_text = 'L\'ente ha trasmesso la candidatura ma non l\'hai ancora asseverata, procedi se non ci sono blocchi ACN o istruttorie'
+            base_text = f'Candidatura dell\'ente in attesa di asseverazione, esito parziale invariato da {alert["giorni"]} giorni. Valuta di completare la verifica salvo presenza di blocchi ACN o istruttorie'
             if alert['is_blocked']:
                 alert['raccomandazione'] = base_text + ' ⛔ BLOCCATO'
             else:
@@ -441,13 +441,13 @@ class AsseverazioniReminderManager:
         # Enti da contattare 1.4.1
         for alert in alerts['ente_1_4_1_15_giorni'] + alerts['ente_1_4_1_30_giorni']:
             alert['tipo_azione'] = 'CONTATTARE ENTE'
-            alert['raccomandazione'] = 'L\'ente non ha ancora risposto al tuo esito parziale, contattalo al più presto'
+            alert['raccomandazione'] = f'L\'ente non ha ancora risposto al tuo esito parziale da {alert["giorni"]} giorni, contattalo al più presto'
             alerts_1_4_1.append(alert)
         
         # Verifiche interne 1.4.1
         for alert in alerts['verifica_1_4_1_15_giorni'] + alerts['verifica_1_4_1_30_giorni']:
             alert['tipo_azione'] = 'PROCEDERE CON VERIFICA'
-            base_text = 'L\'ente ha trasmesso la candidatura ma non l\'hai ancora asseverata, procedi se non ci sono blocchi ACN o istruttorie'
+            base_text = f'Candidatura dell\'ente in attesa di asseverazione, esito parziale invariato da {alert["giorni"]} giorni. Valuta di completare la verifica salvo presenza di blocchi ACN o istruttorie'
             if alert['is_blocked']:
                 alert['raccomandazione'] = base_text + ' ⛔ BLOCCATO'
             else:
