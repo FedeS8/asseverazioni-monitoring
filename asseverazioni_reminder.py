@@ -218,18 +218,32 @@ class AsseverazioniReminderManager:
     def parse_date_column(self, df: pd.DataFrame) -> pd.DataFrame:
         """Converte la colonna data in formato datetime"""
         try:
+            # Gestisce celle vuote nella colonna data
+            df['Data ultima assegnazione'] = df['Data ultima assegnazione'].fillna('')
+            
             # Converte la data ultima assegnazione
             df['Data ultima assegnazione'] = pd.to_datetime(
                 df['Data ultima assegnazione'], 
                 format='%d/%m/%Y %H:%M',
-                errors='coerce'
+                errors='coerce'  # Converte errori in NaT
             )
             
             # Calcola i giorni dalla data ultima assegnazione
             today = datetime.now()
             df['Giorni da ultima assegnazione'] = (today - df['Data ultima assegnazione']).dt.days
             
+            # Gestisce valori NaN (date non valide)
+            df['Giorni da ultima assegnazione'] = df['Giorni da ultima assegnazione'].fillna(0)
+            
             logger.info("Date parsate con successo")
+            
+            # Debug: mostra alcune date per verifica
+            valid_dates = df[df['Data ultima assegnazione'].notna()]
+            if len(valid_dates) > 0:
+                logger.info(f"Esempi di date parsate:")
+                for i, row in valid_dates.head(3).iterrows():
+                    logger.info(f"  {row['Nome ente']}: {row['Data ultima assegnazione']} ({row['Giorni da ultima assegnazione']} giorni fa)")
+            
             return df
             
         except Exception as e:
@@ -238,8 +252,21 @@ class AsseverazioniReminderManager:
     
     def filter_partial_assessments(self, df: pd.DataFrame) -> pd.DataFrame:
         """Filtra solo le asseverazioni con esito Parziale"""
-        partial_df = df[df['Ultimo esito asseverazione tecnica'] == 'Parziale'].copy()
-        logger.info(f"Trovate {len(partial_df)} asseverazioni in stato Parziale")
+        # Gestisce celle vuote nella colonna "Ultimo esito asseverazione tecnica"
+        df['Ultimo esito asseverazione tecnica'] = df['Ultimo esito asseverazione tecnica'].fillna('')
+        
+        # Filtra solo i record con "Parziale" (ignora celle vuote)
+        partial_df = df[df['Ultimo esito asseverazione tecnica'].str.strip() == 'Parziale'].copy()
+        
+        logger.info(f"Trovate {len(partial_df)} asseverazioni in stato Parziale su {len(df)} totali")
+        
+        if len(partial_df) == 0:
+            logger.warning("ATTENZIONE: Nessuna asseverazione trovata con stato 'Parziale'")
+            logger.info("Valori unici nella colonna 'Ultimo esito asseverazione tecnica':")
+            unique_values = df['Ultimo esito asseverazione tecnica'].value_counts(dropna=False)
+            for value, count in unique_values.items():
+                logger.info(f"  '{value}': {count} occorrenze")
+        
         return partial_df
     
     def categorize_alerts(self, df: pd.DataFrame) -> Dict[str, List[Dict]]:
@@ -254,7 +281,18 @@ class AsseverazioniReminderManager:
         for _, row in df.iterrows():
             giorni = row['Giorni da ultima assegnazione']
             stato = row['Stato progetto']
-            is_blocked = row['L\'asseverazione è bloccata?'] == 'Sì'
+            
+            # Gestisce valori NaN nella colonna "L'asseverazione è bloccata?"
+            is_blocked_value = row['L\'asseverazione è bloccata?']
+            if pd.isna(is_blocked_value) or is_blocked_value == '':
+                is_blocked = False
+            else:
+                is_blocked = str(is_blocked_value).strip().lower() == 'sì'
+            
+            # Salta record con date non valide
+            if pd.isna(giorni) or giorni <= 0:
+                logger.warning(f"Saltando record con data non valida: {row['Nome ente']}")
+                continue
             
             # Crea oggetto alert
             alert_data = {
@@ -262,7 +300,7 @@ class AsseverazioniReminderManager:
                 'funding_request': row['Funding Request Name'],
                 'oggetto': row['Oggetto'],
                 'data_ultima_assegnazione': row['Data ultima assegnazione'].strftime('%d/%m/%Y %H:%M'),
-                'giorni': giorni,
+                'giorni': int(giorni),
                 'is_blocked': is_blocked,
                 'stato': stato
             }
