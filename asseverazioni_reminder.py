@@ -415,7 +415,7 @@ class AsseverazioniReminderManager:
         return alerts
     
     def generate_secure_html_email(self, alerts: Dict[str, List[Dict]]) -> str:
-        """Genera email con dati dettagliati raggruppati per misura PNRR"""
+        """Genera email con tabelle dettagliate per misura"""
         today = datetime.now().strftime('%d/%m/%Y')
         
         # Calcola statistiche aggregate
@@ -439,9 +439,9 @@ class AsseverazioniReminderManager:
             return f"""
             <html>
             <body style="font-family: Arial, sans-serif;">
-                <h2>✅ Monitoraggio Asseverazioni PNRR - {today}</h2>
+                <h2>✅ Monitoraggio Asseverazioni Esito Parziale - {today}</h2>
                 <p><strong>Stato: TUTTO OK</strong></p>
-                <p>Nessuna asseverazione in Parziale da oltre 15 giorni.</p>
+                <p>Nessuna asseverazione in esito Parziale da oltre 15 giorni.</p>
                 <p>Ottimo lavoro! Tutte le asseverazioni sono aggiornate.</p>
             </body>
             </html>
@@ -450,12 +450,18 @@ class AsseverazioniReminderManager:
         html_content = f"""
         <html>
         <body style="font-family: Arial, sans-serif;">
-            <h2>🔔 Monitoraggio Asseverazioni PNRR - {today}</h2>
+            <h2>🔔 Monitoraggio Asseverazioni Esito Parziale - {today}</h2>
             
-            <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #007acc; margin: 20px 0;">
-                <h3 style="margin-top: 0; color: #007acc;">📊 Riepilogo Esecutivo</h3>
+            <div style="background-color: #f8f9fa; padding: 15px; border: 1px solid #dee2e6; margin: 20px 0;">
+                <h3 style="margin-top: 0;">📊 Riepilogo</h3>
                 <p><strong>Totale asseverazioni da monitorare:</strong> {total_alerts}</p>
-                <p><strong>🔴 Situazioni urgenti (>30gg):</strong> {urgenti_total}</p>
+                <p><strong>Situazioni urgenti (>30gg):</strong> {urgenti_total}</p>
+            </div>
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border: 1px solid #dee2e6; margin: 20px 0;">
+                <h3 style="margin-top: 0;">🎨 Legenda Colori</h3>
+                <p><span style="background-color: #ffcdd2; padding: 3px 8px;">🔴 URGENTI (>30 giorni)</span> - Priorità massima</p>
+                <p><span style="background-color: #ffe0b2; padding: 3px 8px;">⚠️ ATTENZIONE (15-30 giorni)</span> - Da monitorare</p>
             </div>
         """
         
@@ -467,49 +473,69 @@ class AsseverazioniReminderManager:
                 <h3>📞 ENTI DA CONTATTARE ASAP</h3>
             """
             
-            # Misura 1.2
+            # Misura 1.2 Enti
             if len(ente_alerts['1_2']) > 0:
                 html_content += """
-                <h4 style="color: #0066cc;">🔹 Misura 1.2 - Abilitazione al Cloud</h4>
+                <h4>Misura 1.2 - Abilitazione al Cloud</h4>
+                <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+                    <tr style="background-color: #f2f2f2;">
+                        <th style="padding: 8px; text-align: left;">Oggetto</th>
+                        <th style="padding: 8px; text-align: left;">Nome Ente</th>
+                        <th style="padding: 8px; text-align: left;">ID Candidatura</th>
+                        <th style="padding: 8px; text-align: center;">Giorni</th>
+                        <th style="padding: 8px; text-align: left;">Raccomandazione</th>
+                    </tr>
                 """
                 
-                # Urgenti 1.2
-                urgenti_1_2 = alerts['ente_1_2_30_giorni']
-                if urgenti_1_2:
-                    html_content += '<p style="margin: 10px 0;"><strong>🔴 URGENTI (&gt;30gg):</strong></p><ul>'
-                    for alert in urgenti_1_2:
-                        html_content += f'<li style="color: #d32f2f;"><strong>{alert["nome_ente"]}</strong> ({alert["funding_request"]}) - {alert["giorni"]} giorni</li>'
-                    html_content += '</ul>'
+                # Ordina per urgenza (urgenti prima)
+                all_1_2_enti = alerts['ente_1_2_30_giorni'] + alerts['ente_1_2_15_giorni']
+                for alert in all_1_2_enti:
+                    urgenza = alert['giorni'] >= 30
+                    bg_color = "#ffcdd2" if urgenza else "#ffe0b2"
+                    
+                    html_content += f"""
+                    <tr>
+                        <td style="padding: 8px;">{alert['oggetto']}</td>
+                        <td style="padding: 8px;"><strong>{alert['nome_ente']}</strong></td>
+                        <td style="padding: 8px;">{alert['funding_request']}</td>
+                        <td style="padding: 8px; text-align: center; background-color: {bg_color};"><strong>{alert['giorni']}</strong></td>
+                        <td style="padding: 8px;">L'ente non ha ancora risposto al tuo esito parziale, contattalo al più presto</td>
+                    </tr>
+                    """
                 
-                # Attenzione 1.2
-                attenzione_1_2 = alerts['ente_1_2_15_giorni']
-                if attenzione_1_2:
-                    html_content += '<p style="margin: 10px 0;"><strong>⚠️ ATTENZIONE (15-30gg):</strong></p><ul>'
-                    for alert in attenzione_1_2:
-                        html_content += f'<li style="color: #f57c00;">{alert["nome_ente"]} ({alert["funding_request"]}) - {alert["giorni"]} giorni</li>'
-                    html_content += '</ul>'
+                html_content += "</table>"
             
-            # Misura 1.4.1
+            # Misura 1.4.1 Enti
             if len(ente_alerts['1_4_1']) > 0:
                 html_content += """
-                <h4 style="color: #0066cc;">🔹 Misura 1.4.1 - Esperienza del Cittadino</h4>
+                <h4>Misura 1.4.1 - Esperienza del Cittadino</h4>
+                <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+                    <tr style="background-color: #f2f2f2;">
+                        <th style="padding: 8px; text-align: left;">Oggetto</th>
+                        <th style="padding: 8px; text-align: left;">Nome Ente</th>
+                        <th style="padding: 8px; text-align: left;">ID Candidatura</th>
+                        <th style="padding: 8px; text-align: center;">Giorni</th>
+                        <th style="padding: 8px; text-align: left;">Raccomandazione</th>
+                    </tr>
                 """
                 
-                # Urgenti 1.4.1
-                urgenti_1_4_1 = alerts['ente_1_4_1_30_giorni']
-                if urgenti_1_4_1:
-                    html_content += '<p style="margin: 10px 0;"><strong>🔴 URGENTI (&gt;30gg):</strong></p><ul>'
-                    for alert in urgenti_1_4_1:
-                        html_content += f'<li style="color: #d32f2f;"><strong>{alert["nome_ente"]}</strong> ({alert["funding_request"]}) - {alert["giorni"]} giorni</li>'
-                    html_content += '</ul>'
+                # Ordina per urgenza
+                all_1_4_1_enti = alerts['ente_1_4_1_30_giorni'] + alerts['ente_1_4_1_15_giorni']
+                for alert in all_1_4_1_enti:
+                    urgenza = alert['giorni'] >= 30
+                    bg_color = "#ffcdd2" if urgenza else "#ffe0b2"
+                    
+                    html_content += f"""
+                    <tr>
+                        <td style="padding: 8px;">{alert['oggetto']}</td>
+                        <td style="padding: 8px;"><strong>{alert['nome_ente']}</strong></td>
+                        <td style="padding: 8px;">{alert['funding_request']}</td>
+                        <td style="padding: 8px; text-align: center; background-color: {bg_color};"><strong>{alert['giorni']}</strong></td>
+                        <td style="padding: 8px;">L'ente non ha ancora risposto al tuo esito parziale, contattalo al più presto</td>
+                    </tr>
+                    """
                 
-                # Attenzione 1.4.1
-                attenzione_1_4_1 = alerts['ente_1_4_1_15_giorni']
-                if attenzione_1_4_1:
-                    html_content += '<p style="margin: 10px 0;"><strong>⚠️ ATTENZIONE (15-30gg):</strong></p><ul>'
-                    for alert in attenzione_1_4_1:
-                        html_content += f'<li style="color: #f57c00;">{alert["nome_ente"]} ({alert["funding_request"]}) - {alert["giorni"]} giorni</li>'
-                    html_content += '</ul>'
+                html_content += "</table>"
             
             html_content += "</div>"
         
@@ -519,73 +545,87 @@ class AsseverazioniReminderManager:
             html_content += """
             <div style="margin: 30px 0;">
                 <h3>⚡ PROCEDI CON ASSEVERAZIONE TECNICA</h3>
-                <p style="font-style: italic; color: #666;">(salvo blocchi dovuti ad istruttoria/blocchi ACN)</p>
             """
             
             # Misura 1.2 Verifiche
             if len(verifica_alerts['1_2']) > 0:
                 html_content += """
-                <h4 style="color: #0066cc;">🔹 Misura 1.2 - Abilitazione al Cloud</h4>
+                <h4>Misura 1.2 - Abilitazione al Cloud</h4>
+                <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+                    <tr style="background-color: #f2f2f2;">
+                        <th style="padding: 8px; text-align: left;">Oggetto</th>
+                        <th style="padding: 8px; text-align: left;">Nome Ente</th>
+                        <th style="padding: 8px; text-align: left;">ID Candidatura</th>
+                        <th style="padding: 8px; text-align: center;">Giorni</th>
+                        <th style="padding: 8px; text-align: left;">Raccomandazione</th>
+                    </tr>
                 """
                 
-                # Urgenti verifica 1.2
-                urgenti_v_1_2 = alerts['verifica_1_2_30_giorni']
-                if urgenti_v_1_2:
-                    html_content += '<p style="margin: 10px 0;"><strong>🔴 URGENTI (&gt;30gg):</strong></p><ul>'
-                    for alert in urgenti_v_1_2:
-                        blocked_text = ' ⛔ BLOCCATO' if alert['is_blocked'] else ''
-                        html_content += f'<li style="color: #d32f2f;"><strong>{alert["nome_ente"]}</strong> ({alert["funding_request"]}) - {alert["giorni"]} giorni{blocked_text}</li>'
-                    html_content += '</ul>'
+                # Ordina per urgenza
+                all_1_2_verifiche = alerts['verifica_1_2_30_giorni'] + alerts['verifica_1_2_15_giorni']
+                for alert in all_1_2_verifiche:
+                    urgenza = alert['giorni'] >= 30
+                    bg_color = "#ffcdd2" if urgenza else "#ffe0b2"
+                    
+                    raccomandazione = "L'ente ti ha passato la candidatura e non hai ancora asseverato il progetto, considera di procedere se non ci sono blocchi ACN o istruttorie"
+                    if alert['is_blocked']:
+                        raccomandazione += " ⛔ BLOCCATO"
+                    
+                    html_content += f"""
+                    <tr>
+                        <td style="padding: 8px;">{alert['oggetto']}</td>
+                        <td style="padding: 8px;"><strong>{alert['nome_ente']}</strong></td>
+                        <td style="padding: 8px;">{alert['funding_request']}</td>
+                        <td style="padding: 8px; text-align: center; background-color: {bg_color};"><strong>{alert['giorni']}</strong></td>
+                        <td style="padding: 8px;">{raccomandazione}</td>
+                    </tr>
+                    """
                 
-                # Attenzione verifica 1.2
-                attenzione_v_1_2 = alerts['verifica_1_2_15_giorni']
-                if attenzione_v_1_2:
-                    html_content += '<p style="margin: 10px 0;"><strong>⚠️ ATTENZIONE (15-30gg):</strong></p><ul>'
-                    for alert in attenzione_v_1_2:
-                        blocked_text = ' ⛔ BLOCCATO' if alert['is_blocked'] else ''
-                        html_content += f'<li style="color: #f57c00;">{alert["nome_ente"]} ({alert["funding_request"]}) - {alert["giorni"]} giorni{blocked_text}</li>'
-                    html_content += '</ul>'
+                html_content += "</table>"
             
             # Misura 1.4.1 Verifiche
             if len(verifica_alerts['1_4_1']) > 0:
                 html_content += """
-                <h4 style="color: #0066cc;">🔹 Misura 1.4.1 - Esperienza del Cittadino</h4>
+                <h4>Misura 1.4.1 - Esperienza del Cittadino</h4>
+                <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+                    <tr style="background-color: #f2f2f2;">
+                        <th style="padding: 8px; text-align: left;">Oggetto</th>
+                        <th style="padding: 8px; text-align: left;">Nome Ente</th>
+                        <th style="padding: 8px; text-align: left;">ID Candidatura</th>
+                        <th style="padding: 8px; text-align: center;">Giorni</th>
+                        <th style="padding: 8px; text-align: left;">Raccomandazione</th>
+                    </tr>
                 """
                 
-                # Urgenti verifica 1.4.1
-                urgenti_v_1_4_1 = alerts['verifica_1_4_1_30_giorni']
-                if urgenti_v_1_4_1:
-                    html_content += '<p style="margin: 10px 0;"><strong>🔴 URGENTI (&gt;30gg):</strong></p><ul>'
-                    for alert in urgenti_v_1_4_1:
-                        blocked_text = ' ⛔ BLOCCATO' if alert['is_blocked'] else ''
-                        html_content += f'<li style="color: #d32f2f;"><strong>{alert["nome_ente"]}</strong> ({alert["funding_request"]}) - {alert["giorni"]} giorni{blocked_text}</li>'
-                    html_content += '</ul>'
+                # Ordina per urgenza
+                all_1_4_1_verifiche = alerts['verifica_1_4_1_30_giorni'] + alerts['verifica_1_4_1_15_giorni']
+                for alert in all_1_4_1_verifiche:
+                    urgenza = alert['giorni'] >= 30
+                    bg_color = "#ffcdd2" if urgenza else "#ffe0b2"
+                    
+                    raccomandazione = "L'ente ti ha passato la candidatura e non hai ancora asseverato il progetto, considera di procedere se non ci sono blocchi ACN o istruttorie"
+                    if alert['is_blocked']:
+                        raccomandazione += " ⛔ BLOCCATO"
+                    
+                    html_content += f"""
+                    <tr>
+                        <td style="padding: 8px;">{alert['oggetto']}</td>
+                        <td style="padding: 8px;"><strong>{alert['nome_ente']}</strong></td>
+                        <td style="padding: 8px;">{alert['funding_request']}</td>
+                        <td style="padding: 8px; text-align: center; background-color: {bg_color};"><strong>{alert['giorni']}</strong></td>
+                        <td style="padding: 8px;">{raccomandazione}</td>
+                    </tr>
+                    """
                 
-                # Attenzione verifica 1.4.1
-                attenzione_v_1_4_1 = alerts['verifica_1_4_1_15_giorni']
-                if attenzione_v_1_4_1:
-                    html_content += '<p style="margin: 10px 0;"><strong>⚠️ ATTENZIONE (15-30gg):</strong></p><ul>'
-                    for alert in attenzione_v_1_4_1:
-                        blocked_text = ' ⛔ BLOCCATO' if alert['is_blocked'] else ''
-                        html_content += f'<li style="color: #f57c00;">{alert["nome_ente"]} ({alert["funding_request"]}) - {alert["giorni"]} giorni{blocked_text}</li>'
-                    html_content += '</ul>'
+                html_content += "</table>"
             
             html_content += "</div>"
         
-        # Riepilogo finale
+        # Footer
         html_content += f"""
         <hr style="margin: 30px 0;">
-        <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #28a745; margin: 20px 0;">
-            <h3 style="margin-top: 0; color: #28a745;">📊 Statistiche</h3>
-            <ul>
-                <li><strong>Enti da contattare ASAP:</strong> {ente_total}</li>
-                <li><strong>Verifiche tecniche da completare:</strong> {verifica_total}</li>
-                <li><strong>Priorità ALTA (>30gg):</strong> {urgenti_total}</li>
-            </ul>
-        </div>
-        
         <p style="font-size: 0.9em; color: #666; margin-top: 30px;">
-            <em>Report generato automaticamente dal sistema di monitoraggio PNRR - {today}</em>
+            <em>Report generato automaticamente - {today}</em>
         </p>
         </body>
         </html>
