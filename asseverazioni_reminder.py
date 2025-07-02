@@ -415,24 +415,20 @@ class AsseverazioniReminderManager:
         return alerts
     
     def generate_secure_html_email(self, alerts: Dict[str, List[Dict]]) -> str:
-        """Genera email con tabella unica per tutte le asseverazioni"""
+        """Genera email con due tabelle separate per misura 1.2 e 1.4.1"""
         today = datetime.now().strftime('%d/%m/%Y')
         
-        # Raccoglie tutti gli alert in una lista unica
-        all_alerts = []
+        # Raccoglie alert per misura
+        alerts_1_2 = []
+        alerts_1_4_1 = []
         
-        # Enti da contattare
+        # Enti da contattare 1.2
         for alert in alerts['ente_1_2_15_giorni'] + alerts['ente_1_2_30_giorni']:
             alert['tipo_azione'] = 'CONTATTARE ENTE'
             alert['raccomandazione'] = 'L\'ente non ha ancora risposto al tuo esito parziale, contattalo al più presto'
-            all_alerts.append(alert)
-            
-        for alert in alerts['ente_1_4_1_15_giorni'] + alerts['ente_1_4_1_30_giorni']:
-            alert['tipo_azione'] = 'CONTATTARE ENTE'
-            alert['raccomandazione'] = 'L\'ente non ha ancora risposto al tuo esito parziale, contattalo al più presto'
-            all_alerts.append(alert)
+            alerts_1_2.append(alert)
         
-        # Verifiche interne
+        # Verifiche interne 1.2
         for alert in alerts['verifica_1_2_15_giorni'] + alerts['verifica_1_2_30_giorni']:
             alert['tipo_azione'] = 'PROCEDERE CON VERIFICA'
             base_text = 'L\'ente ha trasmesso la candidatura ma non l\'hai ancora asseverata, procedi se non ci sono blocchi ACN o istruttorie'
@@ -440,8 +436,15 @@ class AsseverazioniReminderManager:
                 alert['raccomandazione'] = base_text + ' ⛔ BLOCCATO'
             else:
                 alert['raccomandazione'] = base_text
-            all_alerts.append(alert)
-            
+            alerts_1_2.append(alert)
+        
+        # Enti da contattare 1.4.1
+        for alert in alerts['ente_1_4_1_15_giorni'] + alerts['ente_1_4_1_30_giorni']:
+            alert['tipo_azione'] = 'CONTATTARE ENTE'
+            alert['raccomandazione'] = 'L\'ente non ha ancora risposto al tuo esito parziale, contattalo al più presto'
+            alerts_1_4_1.append(alert)
+        
+        # Verifiche interne 1.4.1
         for alert in alerts['verifica_1_4_1_15_giorni'] + alerts['verifica_1_4_1_30_giorni']:
             alert['tipo_azione'] = 'PROCEDERE CON VERIFICA'
             base_text = 'L\'ente ha trasmesso la candidatura ma non l\'hai ancora asseverata, procedi se non ci sono blocchi ACN o istruttorie'
@@ -449,13 +452,14 @@ class AsseverazioniReminderManager:
                 alert['raccomandazione'] = base_text + ' ⛔ BLOCCATO'
             else:
                 alert['raccomandazione'] = base_text
-            all_alerts.append(alert)
+            alerts_1_4_1.append(alert)
         
         # Ordina per urgenza (urgenti prima)
-        all_alerts.sort(key=lambda x: x['giorni'], reverse=True)
+        alerts_1_2.sort(key=lambda x: x['giorni'], reverse=True)
+        alerts_1_4_1.sort(key=lambda x: x['giorni'], reverse=True)
         
-        total_alerts = len(all_alerts)
-        urgenti_total = len([a for a in all_alerts if a['giorni'] >= 30])
+        total_alerts = len(alerts_1_2) + len(alerts_1_4_1)
+        urgenti_total = len([a for a in alerts_1_2 + alerts_1_4_1 if a['giorni'] >= 30])
         
         if total_alerts == 0:
             return f"""
@@ -485,48 +489,72 @@ class AsseverazioniReminderManager:
                 <p><span style="background-color: #ffcdd2; padding: 3px 8px;">🔴 URGENTI (>30 giorni)</span> - Priorità massima</p>
                 <p><span style="background-color: #ffe0b2; padding: 3px 8px;">⚠️ ATTENZIONE (15-30 giorni)</span> - Da monitorare</p>
             </div>
-            
-            <h3>📋 Asseverazioni con Esito Parziale Non Gestite da Tempo</h3>
-            <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
+        """
+        
+        # Tabella 1.2
+        if len(alerts_1_2) > 0:
+            html_content += """
+            <h3>📋 Asseverazioni con Esito Parziale 1.2</h3>
+            <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 30px;">
                 <tr style="background-color: #f2f2f2;">
-                    <th style="padding: 8px; text-align: left;">Misura</th>
                     <th style="padding: 8px; text-align: left;">Nome Ente</th>
                     <th style="padding: 8px; text-align: left;">ID Candidatura</th>
                     <th style="padding: 8px; text-align: center;">Giorni</th>
                     <th style="padding: 8px; text-align: left;">Azione</th>
                     <th style="padding: 8px; text-align: left;">Raccomandazione</th>
                 </tr>
-        """
-        
-        for alert in all_alerts:
-            urgenza = alert['giorni'] >= 30
-            bg_color = "#ffcdd2" if urgenza else "#ffe0b2"
-            
-            # Converte oggetto in misura
-            if '1.2' in alert['oggetto']:
-                misura = '1.2'
-            elif '1.4.1' in alert['oggetto']:
-                misura = '1.4.1'
-            else:
-                misura = 'N/A'
-            
-            html_content += f"""
-            <tr>
-                <td style="padding: 8px;"><strong>{misura}</strong></td>
-                <td style="padding: 8px;">{alert['nome_ente']}</td>
-                <td style="padding: 8px;">{alert['funding_request']}</td>
-                <td style="padding: 8px; text-align: center; background-color: {bg_color};"><strong>{alert['giorni']}</strong></td>
-                <td style="padding: 8px;">{alert['tipo_azione']}</td>
-                <td style="padding: 8px;">{alert['raccomandazione']}</td>
-            </tr>
             """
-        
-        html_content += """
-            </table>
             
+            for alert in alerts_1_2:
+                urgenza = alert['giorni'] >= 30
+                bg_color = "#ffcdd2" if urgenza else "#ffe0b2"
+                
+                html_content += f"""
+                <tr>
+                    <td style="padding: 8px;">{alert['nome_ente']}</td>
+                    <td style="padding: 8px;">{alert['funding_request']}</td>
+                    <td style="padding: 8px; text-align: center; background-color: {bg_color};"><strong>{alert['giorni']}</strong></td>
+                    <td style="padding: 8px;">{alert['tipo_azione']}</td>
+                    <td style="padding: 8px;">{alert['raccomandazione']}</td>
+                </tr>
+                """
+            
+            html_content += "</table>"
+        
+        # Tabella 1.4.1
+        if len(alerts_1_4_1) > 0:
+            html_content += """
+            <h3>📋 Asseverazioni con Esito Parziale 1.4.1</h3>
+            <table border="1" style="border-collapse: collapse; width: 100%; margin-bottom: 30px;">
+                <tr style="background-color: #f2f2f2;">
+                    <th style="padding: 8px; text-align: left;">Nome Ente</th>
+                    <th style="padding: 8px; text-align: left;">ID Candidatura</th>
+                    <th style="padding: 8px; text-align: center;">Giorni</th>
+                    <th style="padding: 8px; text-align: left;">Azione</th>
+                    <th style="padding: 8px; text-align: left;">Raccomandazione</th>
+                </tr>
+            """
+            
+            for alert in alerts_1_4_1:
+                urgenza = alert['giorni'] >= 30
+                bg_color = "#ffcdd2" if urgenza else "#ffe0b2"
+                
+                html_content += f"""
+                <tr>
+                    <td style="padding: 8px;">{alert['nome_ente']}</td>
+                    <td style="padding: 8px;">{alert['funding_request']}</td>
+                    <td style="padding: 8px; text-align: center; background-color: {bg_color};"><strong>{alert['giorni']}</strong></td>
+                    <td style="padding: 8px;">{alert['tipo_azione']}</td>
+                    <td style="padding: 8px;">{alert['raccomandazione']}</td>
+                </tr>
+                """
+            
+            html_content += "</table>"
+        
+        html_content += f"""
             <hr style="margin: 30px 0;">
             <p style="font-size: 0.9em; color: #666; margin-top: 30px;">
-                <em>Report generato automaticamente - """ + today + """</em>
+                <em>Report generato automaticamente - {today}</em>
             </p>
         </body>
         </html>
