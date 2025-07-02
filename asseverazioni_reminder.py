@@ -344,7 +344,7 @@ class AsseverazioniReminderManager:
             raise
     
     def filter_partial_assessments(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Filtra solo le asseverazioni con esito Parziale"""
+        """Filtra solo le asseverazioni con esito Parziale e rimuove duplicati per ente"""
         # Gestisce celle vuote nella colonna "Ultimo esito asseverazione tecnica"
         df['Ultimo esito asseverazione tecnica'] = df['Ultimo esito asseverazione tecnica'].fillna('')
         
@@ -359,8 +359,44 @@ class AsseverazioniReminderManager:
             unique_values = df['Ultimo esito asseverazione tecnica'].value_counts(dropna=False)
             for value, count in unique_values.items():
                 logger.info(f"  '{value}': {count} occorrenze")
+            return partial_df
         
-        return partial_df
+        # NUOVA LOGICA: Rimuovi duplicati per ente, tenendo solo il più recente
+        logger.info("Rimozione duplicati per ente (tenendo solo l'asseverazione più recente)...")
+        
+        # Converte la data per il sorting (se non già fatto)
+        if 'Data ultima assegnazione' in partial_df.columns:
+            partial_df['Data ultima assegnazione'] = pd.to_datetime(
+                partial_df['Data ultima assegnazione'], 
+                format='%d/%m/%Y %H:%M',
+                errors='coerce'
+            )
+        
+        # Raggruppa per ente e prende solo il record più recente
+        # Ordina per data decrescente e prende il primo per ogni ente
+        partial_df_sorted = partial_df.sort_values('Data ultima assegnazione', ascending=False)
+        partial_df_unique = partial_df_sorted.groupby('Nome ente').first().reset_index()
+        
+        # Log dei duplicati rimossi
+        duplicates_removed = len(partial_df) - len(partial_df_unique)
+        if duplicates_removed > 0:
+            logger.info(f"✅ Rimossi {duplicates_removed} duplicati")
+            
+            # Mostra quali enti avevano duplicati
+            duplicate_entities = partial_df.groupby('Nome ente').size()
+            duplicate_entities = duplicate_entities[duplicate_entities > 1]
+            
+            for ente, count in duplicate_entities.items():
+                # Trova le date per questo ente
+                ente_dates = partial_df[partial_df['Nome ente'] == ente]['Data ultima assegnazione'].sort_values(ascending=False)
+                latest_date = ente_dates.iloc[0].strftime('%d/%m/%Y %H:%M')
+                logger.info(f"  {ente}: {count} asseverazioni → tenuto solo {latest_date}")
+        else:
+            logger.info("✅ Nessun duplicato trovato")
+        
+        logger.info(f"Risultato finale: {len(partial_df_unique)} asseverazioni uniche in stato Parziale")
+        
+        return partial_df_unique
     
     def categorize_alerts(self, df: pd.DataFrame) -> Dict[str, List[Dict]]:
         """Categorizza gli alert in base allo stato e ai giorni"""
